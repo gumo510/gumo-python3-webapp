@@ -12,11 +12,14 @@ __author__ = 'Gumo'
 
 # *** day03 begin ***
 
-import asyncio, logging, aiomysql
+import aiomysql
+import logging
+
 
 # 创建基本日志函数，变量 sql 出现了很多次，这里我们还不知道它的作用
 def log(sql, args=()):
     logging.info('SQL: %s' % sql)
+
 
 # 异步IO起手式 async ，创建连接池函数， pool 用法见下：
 # https://aiomysql.readthedocs.io/en/latest/pool.html?highlight=create_pool
@@ -27,8 +30,8 @@ async def create_pool(loop, **kw):
     # 使用这些基本参数来创建连接池
     # await 和 async 是联动的（异步IO）
     __pool = await aiomysql.create_pool(
-        host=kw.get('host', 'localhost'),
-        port=kw.get('port', 3306),
+        host=kw.get('host', '192.168.13.77'),
+        port=kw.get('port', 32000),
         user=kw['user'],
         password=kw['password'],
         db=kw['db'],
@@ -38,6 +41,7 @@ async def create_pool(loop, **kw):
         minsize=kw.get('minsize', 1),
         loop=loop
     )
+
 
 async def select(sql, args, size=None):
     log(sql, args)
@@ -54,7 +58,7 @@ async def select(sql, args, size=None):
         # cursor 游标实例可以调用 execute 来执行一条单独的 SQL 语句，参考自：
         # https://docs.python.org/zh-cn/3.8/library/sqlite3.html?highlight=execute#cursor-objects
         # 这里的 cur 来自上面的 conn.cursor ，然后执行后面的 sql ，具体sql干了啥先不管
-        await cur.execute(sql.replace('?', '%s'), args or())
+        await cur.execute(sql.replace('?', '%s'), args or ())
         # size 为空时为 False，上面定义了初始值为 None ，具体得看传入的参数有没有定义 size
         if size:
             # fetchmany 可以获取行数为 size 的多行查询结果集，返回一个列表
@@ -69,6 +73,7 @@ async def select(sql, args, size=None):
         # 现在我们知道了，这个 select 函数给我们从 SQL 返回了一个列表
         return rs
 
+
 # execute ：执行
 async def execute(sql, args):
     log(sql)
@@ -76,7 +81,7 @@ async def execute(sql, args):
     with (await __pool) as conn:
         try:
             cur = await conn.cursor()
-            await cur.execute(sql.replace('?', '%s'),args)
+            await cur.execute(sql.replace('?', '%s'), args)
             # rowcount 获取行数，应该表示的是该函数影响的行数
             affected = cur.rowcount
             await cur.close()
@@ -86,6 +91,7 @@ async def execute(sql, args):
             raise
         # 返回行数
         return affected
+
 
 # 今天先摸了，写这么多注释也是一个学习的过程 2020/10/14
 
@@ -97,6 +103,7 @@ def create_args_string(num):
         L.append('?')
     return ', '.join(L)
 
+
 # Model 只是一个基类，所以先定义 ModelMetaclass ，再在定义 Model 时使用 metaclass 参数
 # 参考蔡老师教程： https://www.liaoxuefeng.com/wiki/1016959663602400/1017592449371072
 class ModelMetaclass(type):
@@ -107,7 +114,7 @@ class ModelMetaclass(type):
     # attrs：类的方法集合
     def __new__(cls, name, bases, attrs):
         # 排除 Model 类本身，返回它自己
-        if name=='Model':
+        if name == 'Model':
             return type.__new__(cls, name, bases, attrs)
         # 获取 table 名称
         tableName = attrs.get('__table__', None) or name
@@ -118,10 +125,10 @@ class ModelMetaclass(type):
         fields = []
         primaryKey = None
         # attrs.items 取决于 __new__ 传入的 attrs 参数
-        for k,v in attrs.items():
+        for k, v in attrs.items():
             # isinstance 函数：如果 v 和 Field 类型相同则返回 True ，不相同则 False
             if isinstance(v, Field):
-                logging.info(' found mapping: %s ==> %s' % (k,v))
+                logging.info(' found mapping: %s ==> %s' % (k, v))
                 mappings[k] = v
                 # 这里的 v.primary_key 我理解为 ：只要 primary_key 为 True 则这个 field 为主键
                 if v.primary_key:
@@ -141,16 +148,19 @@ class ModelMetaclass(type):
             attrs.pop(k)
         # 这个 lambda 看不懂呀
         escaped_fields = list(map(lambda f: '`%s`' % f, fields))
-        attrs['__mappings__'] = mappings # 保存属性和列的映射关系
-        attrs['__table__'] = tableName # table 名
-        attrs['__primary_key__'] = primaryKey # 主键属性名
-        attrs['__fields__'] = fields # 除主键外的属性名
+        attrs['__mappings__'] = mappings  # 保存属性和列的映射关系
+        attrs['__table__'] = tableName  # table 名
+        attrs['__primary_key__'] = primaryKey  # 主键属性名
+        attrs['__fields__'] = fields  # 除主键外的属性名
         # 构造默认的 SELECT, INSERT, UPDAT E和 DELETE 语句
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ', '.join(escaped_fields), tableName)
-        attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
-        attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
+        attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (
+        tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
+        attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (
+        tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
         attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName, primaryKey)
         return type.__new__(cls, name, bases, attrs)
+
 
 # metaclass 参数提示 Model 要通过上面的 __new__ 来创建
 class Model(dict, metaclass=ModelMetaclass):
@@ -158,19 +168,23 @@ class Model(dict, metaclass=ModelMetaclass):
         # super 用来引用父类？ 引用了 ModelMetaclass ？ super 文档：
         # https://docs.python.org/zh-cn/3.8/library/functions.html?highlight=super#super
         super(Model, self).__init__(**kw)
+
     # 返回参数为 key 的自身属性， 如果出错则报具体错误
     def __getattr__(self, key):
         try:
             return self[key]
         except KeyError:
             raise AttributeError(r"'Model' object has no attribute '%s'" % key)
+
     # 设置自身属性
     def __setattr__(self, key, value):
         self[key] = value
+
     # 通过属性返回想要的值
     def getValue(self, key):
         return getattr(self, key, None)
-    # 
+
+    #
     def getValueOrDefault(self, key):
         value = getattr(self, key, None)
         if value is None:
@@ -179,7 +193,7 @@ class Model(dict, metaclass=ModelMetaclass):
             if field.default is not None:
                 # 如果 field.default 不是 None ： 就把它赋值给 value
                 value = field.default() if callable(field.default) else field.default
-                logging.debug('using default value for %s: %s' % (key,str(value)))
+                logging.debug('using default value for %s: %s' % (key, str(value)))
                 setattr(self, key, value)
         return value
 
@@ -227,7 +241,7 @@ class Model(dict, metaclass=ModelMetaclass):
     @classmethod
     async def findNumber(cls, selectField, where=None, args=None):
         ## find number by select and where
-        #找到选中的数及其位置
+        # 找到选中的数及其位置
         sql = ['select %s _num_ from `%s`' % (selectField, cls.__table__)]
         if where:
             sql.append('where')
@@ -269,31 +283,39 @@ class Model(dict, metaclass=ModelMetaclass):
             logging.warning('failed to remove by primary key: affected rows: %s' % rows)
     # save , update , remove 这三个可以对比着来看
 
-# 定义 Field 
+
+# 定义 Field
 class Field(object):
     def __init__(self, name, column_type, primary_key, default):
         self.name = name
         self.column_type = column_type
         self.primary_key = primary_key
         self.default = default
+
     def __str__(self):
         return '<%s, %s:%s>' % (self.__class__.__name__, self.column_type, self.name)
+
+
 # 定义 Field 子类及其子类的默认值
 class StringField(Field):
     def __init__(self, name=None, primary_key=False, default=None, ddl='varchar(100)'):
         super().__init__(name, ddl, primary_key, default)
 
+
 class BooleanField(Field):
     def __init__(self, name=None, default=False):
         super().__init__(name, 'boolean', False, default)
+
 
 class IntegerField(Field):
     def __init__(self, name=None, primary_key=False, default=0):
         super().__init__(name, 'bigint', primary_key, default)
 
+
 class FloatField(Field):
     def __init__(self, name=None, primary_key=False, default=0):
-        super().__init__(name, 'real', primary_key,default)
+        super().__init__(name, 'real', primary_key, default)
+
 
 class TextField(Field):
     def __init__(self, name=None, default=None):
