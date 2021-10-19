@@ -14,7 +14,7 @@ Models for user, blog, comment.
 import time
 import uuid
 
-from www.orm import Model, StringField, BooleanField, FloatField, TextField
+from orm import Model, StringField, BooleanField, FloatField, TextField
 
 
 def next_id():

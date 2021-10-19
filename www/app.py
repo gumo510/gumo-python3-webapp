@@ -128,18 +128,19 @@ def datetime_filter(t):
 
 async def init(loop):
     await orm.create_pool(loop=loop, host='192.168.13.77', port=32000, user='root', password='introcks1234', db='moe')
-    app = web.Application(loop=loop, middlewares=[
-        logger_factory, response_factory
-    ])
+    app = web.Application(middlewares=[logger_factory, response_factory])
     init_jinja2(app, filters=dict(datetime=datetime_filter))
     add_routes(app, 'handlers')  # 自动把handler模块的所有符合条件的函数注册了:
     add_static(app)
-    srv = await loop.create_server(app.make_handler(), '127.0.0.1', 9000)
-    logging.info('server started at http://127.0.0.1:9000...')
-    return
+    # srv = await loop.create_server(app.make_handler(), '127.0.0.1', 9000)
+    # logging.info('server started at http://127.0.0.1:9000...')
+    return app
 
 
-#  这里又用蔡老师的老代码， 懒得管了能跑就行
-loop = asyncio.get_event_loop()
-loop.run_until_complete(init(loop))
-loop.run_forever()
+# #  这里又用蔡老师的老代码， 懒得管了能跑就行
+# loop = asyncio.get_event_loop()
+# loop.run_until_complete(init(loop))
+# loop.run_forever()
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    web.run_app(init(loop), host='localhost', port=9000)
