@@ -12,7 +12,7 @@ from coroweb import get, post
 from apis import Page, APIValueError, APIResourceNotFoundError
 
 from models import User, Comment, Blog, next_id
-from conf.config import configs
+from config import configs
 
 COOKIE_NAME = 'awesession'
 _COOKIE_KEY = configs.session.secret
@@ -97,6 +97,7 @@ def register():
 
 @get('/signin')
 def signin():
+    print("测试122")
     return {
         '__template__': 'signin.html'
     }
