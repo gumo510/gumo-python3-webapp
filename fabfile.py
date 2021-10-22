@@ -8,10 +8,10 @@ from datetime import datetime
 
 from fabric.api import *
 
-env.user = 'user'  # 服务器登录用户名
+env.user = 'intellif'  # 服务器登录用户名
 env.sudo_user = 'root'  # sudo用户为root
 # env.hosts = ['123.123.123.123']
-env.host_string = '123.123.123.123'  # 改成你的服务器ip
+env.host_string = '192.168.12.222'  # 改成你的服务器ip
 db_user = 'www-data'  # 服务器MySQL用户名和口令
 db_password = 'www-data'
 _TAR_FILE = 'dist-awesome.tar.gz'
@@ -45,22 +45,22 @@ def build():
 
 def deploy():
     newdir = 'www-%s' % _now()
-    run('rm -f %s' % _REMOTE_TMP_TAR)
-    put('dist/%s' % _TAR_FILE, _REMOTE_TMP_TAR)
-    with cd(_REMOTE_BASE_DIR):
+    run('rm -f %s' % _REMOTE_TMP_TAR)  # 删除已有的tar文件:
+    put('dist/%s' % _TAR_FILE, _REMOTE_TMP_TAR)  # 上传新的tar文件:
+    with cd(_REMOTE_BASE_DIR):  # 创建新目录:
         sudo('mkdir %s' % newdir)
-    with cd('%s/%s' % (_REMOTE_BASE_DIR, newdir)):
+    with cd('%s/%s' % (_REMOTE_BASE_DIR, newdir)):  # 解压到新目录:
         sudo('tar -xzvf %s' % _REMOTE_TMP_TAR)  # 解压
         sudo('mv www/* .')  # 解压后多一层www文件夹，因此向上移动一层
         sudo('rm -rf www')  # 删除空文件夹www
         sudo('dos2unix app.py')  # 解决windows和linux行尾换行不同问题
         sudo('chmod a+x app.py')  # 使app.py可直接执行
-    with cd(_REMOTE_BASE_DIR):
+    with cd(_REMOTE_BASE_DIR):  # 重置软链接:
         sudo('rm -f www')  # 删除旧软链接
         sudo('ln -s %s www' % newdir)  # 创建新链接
-        sudo('chown user:user www')  # user改为你的linux服务器上的用户名
-        sudo('chown -R user:user %s' % newdir)  # 同上
-    with settings(warn_only=True):
+        sudo('chown intellif:intellif www')  # user改为你的linux服务器上的用户名
+        sudo('chown -R intellif:intellif %s' % newdir)  # 同上
+    with settings(warn_only=True):  # 重启Python服务和nginx服务器:
         sudo('supervisorctl stop awesome')  # supervisor重启app
         sudo('supervisorctl start awesome')
         sudo('/etc/init.d/nginx reload')  # nginx重启
